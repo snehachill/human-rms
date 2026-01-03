@@ -22,22 +22,22 @@ export default function LoginPage() {
       return;
     }
     // Successful sign in
-    router.push("/dashboard");
+    router.push("/");
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="w-full max-w-md bg-white p-8 rounded-lg shadow">
-        <h1 className="text-2xl font-semibold mb-6">Sign in</h1>
+        <h1 className="text-2xl font-semibold mb-6">Sign in to Dayflow</h1>
         {error && <div className="text-sm text-red-600 mb-4">{error}</div>}
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Email</label>
+            <label className="block text-sm font-medium mb-1">Email or Login ID</label>
             <input
               className="w-full px-3 py-2 border rounded"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              type="email"
+              type="text"
               required
             />
           </div>
@@ -62,7 +62,7 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-4 text-sm">
-          New to the site? <a href="/register" className="text-blue-600">Create an account</a>
+          New to Dayflow? <a href="/register" className="text-blue-600">Create an account</a>
         </div>
       </div>
     </div>

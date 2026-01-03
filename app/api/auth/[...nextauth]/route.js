@@ -10,7 +10,7 @@ const authOptions = {
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        email: { label: "Email", type: "text" },
+        email: { label: "Email or Login ID", type: "text" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
@@ -18,7 +18,8 @@ const authOptions = {
         const { email, password } = credentials || {};
         if (!email || !password) return null;
 
-        const user = await User.findOne({ email }).select("+password");
+        // Accept either email or loginID in the same field
+        const user = await User.findOne({ $or: [{ email }, { loginID: email }] }).select("+password");
         if (!user) return null;
 
         const isValid = await bcrypt.compare(password, user.password);
