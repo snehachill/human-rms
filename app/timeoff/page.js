@@ -5,6 +5,14 @@ import { redirect } from "next/navigation";
 import dbConnect from "../../lib/connectDb";
 import User from "../../models/user";
 
+function getBaseUrl() {
+  const url =
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    process.env.NEXTAUTH_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  return url.replace(/\/$/, "");
+}
+
 async function fetchJSON(url, init) {
   const res = await fetch(url, init);
   const data = await res.json().catch(() => ({}));
@@ -19,7 +27,7 @@ export default async function TimeOffPage() {
   const me = await User.findById(session.user.id).select("role name").lean();
 
   if (me.role === "admin") {
-    const { requests } = await fetchJSON(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/leave/admin`, { cache: 'no-store' });
+    const { requests } = await fetchJSON(`${getBaseUrl()}/api/leave/admin`, { cache: 'no-store' });
 
     return (
       <div className="min-h-screen bg-[#F8FAFC] p-8">
@@ -27,6 +35,34 @@ export default async function TimeOffPage() {
           <div>
             <h1 className="text-3xl font-bold text-slate-900">Time Off Requests</h1>
             <p className="text-slate-500 mt-1">Manage and review requests</p>
+          </div>
+
+          {/* Summary cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-2xl border border-slate-200 p-5">
+              <p className="text-xs font-semibold text-slate-500">Pending</p>
+              <p className="text-2xl font-bold mt-1 text-amber-600">{requests.filter(r=>r.status==='pending').length}</p>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 p-5">
+              <p className="text-xs font-semibold text-slate-500">Approved</p>
+              <p className="text-2xl font-bold mt-1 text-emerald-600">{requests.filter(r=>r.status==='approved').length}</p>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 p-5">
+              <p className="text-xs font-semibold text-slate-500">Rejected</p>
+              <p className="text-2xl font-bold mt-1 text-rose-600">{requests.filter(r=>r.status==='rejected').length}</p>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500">This Month</p>
+                <p className="text-2xl font-bold mt-1 text-indigo-600">{requests.filter(r=>{
+                  const d=new Date(r.startDate); const n=new Date(); return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear();
+                }).length}</p>
+              </div>
+              <svg viewBox="0 0 36 36" className="w-12 h-12">
+                <path d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32" fill="#EEF2FF" />
+                <circle r="16" cx="18" cy="18" fill="none" stroke="#6366F1" strokeWidth="4" strokeDasharray="60 100" strokeLinecap="round" transform="rotate(-90 18 18)" />
+              </svg>
+            </div>
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
@@ -67,13 +103,35 @@ export default async function TimeOffPage() {
   }
 
   // Employee view: list own requests and provide link to apply via Quickaction modal on dashboard
-  const { requests } = await fetchJSON(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/leave`, { cache: 'no-store' });
+  const { requests } = await fetchJSON(`${getBaseUrl()}/api/leave`, { cache: 'no-store' });
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-8">
       <div className="max-w-4xl mx-auto space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">My Time Off</h1>
           <p className="text-slate-500 mt-1">Track your requests and statuses. Use Quick Actions on the dashboard to apply.</p>
+        </div>
+
+        {/* Summary + donut */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-5">
+            <p className="text-xs font-semibold text-slate-500">Annual Allowance</p>
+            <p className="text-2xl font-bold mt-1 text-slate-900">20 days</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-200 p-5">
+            <p className="text-xs font-semibold text-slate-500">Taken</p>
+            <p className="text-2xl font-bold mt-1 text-indigo-600">8 days</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-500">Remaining</p>
+              <p className="text-2xl font-bold mt-1 text-emerald-600">12 days</p>
+            </div>
+            <svg viewBox="0 0 36 36" className="w-12 h-12">
+              <path d="M18 2 a 16 16 0 1 1 0 32 a 16 16 0 1 1 0 -32" fill="#ECFDF5" />
+              <circle r="16" cx="18" cy="18" fill="none" stroke="#10B981" strokeWidth="4" strokeDasharray="60 100" strokeLinecap="round" transform="rotate(-90 18 18)" />
+            </svg>
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
@@ -106,7 +164,7 @@ export default async function TimeOffPage() {
 async function AdminAction({ id }) {
   async function update(status) {
     'use server';
-    await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/leave/admin`, {
+    await fetch(`${getBaseUrl()}/api/leave/admin`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status })
