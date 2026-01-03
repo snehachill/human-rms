@@ -1,108 +1,79 @@
-import React from "react";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../api/auth/[...nextauth]/route";
-import { redirect } from "next/navigation";
-import dbConnect from "../../lib/connectDb";
-import User from "../../models/user";
-import Attendance from "../../models/attendance";
+"use client";
 
-function formatMinutes(mins = 0) {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return `${h}h ${m}m`;
-}
+import React, { useState } from "react";
+// UPDATED IMPORT: We now import from the SAME folder
+import AttendanceYearView from "./AttendanceYearView";
 
-export default async function AttendancePage() {
-  const session = await getServerSession(authOptions);
-  if (!session) redirect("/login");
-  await dbConnect();
-  const me = await User.findById(session.user.id).select("role name").lean();
+const generateMockData = (year) => {
+  const data = [];
+  const start = new Date(year, 0, 1);
+  const end = new Date(year, 11, 31);
+  
+  for (let d = start; d <= end; d.setDate(d.getDate() + 1)) {
+    const random = Math.random();
+    if (d.getDay() === 0 || d.getDay() === 6) continue; 
 
-  if (me.role === "admin") {
-    const records = await Attendance.find({}).sort({ createdAt: -1 }).limit(100).populate("userId", "name loginID").lean();
-    return (
-      <div className="min-h-screen bg-[#F8FAFC] p-8">
-        <div className="max-w-6xl mx-auto">
-          <h1 className="text-3xl font-bold text-slate-900 mb-6">Attendance (Admin)</h1>
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-600">
-                <tr>
-                  <th className="text-left p-3">Employee</th>
-                  <th className="text-left p-3">Date</th>
-                  <th className="text-left p-3">Clock In</th>
-                  <th className="text-left p-3">Clock Out</th>
-                  <th className="text-left p-3">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((r) => (
-                  <tr key={r._id} className="border-t border-slate-100">
-                    <td className="p-3">{r.userId?.name} <span className="text-slate-400 text-xs">{r.userId?.loginID}</span></td>
-                    <td className="p-3">{r.date}</td>
-                    <td className="p-3">{r.clockInAt ? new Date(r.clockInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
-                    <td className="p-3">{r.clockOutAt ? new Date(r.clockOutAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
-                    <td className="p-3">{formatMinutes(r.totalMinutes)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    );
+    if (random > 0.9) data.push({ date: new Date(d), status: "ABSENT" });
+    else if (random > 0.85) data.push({ date: new Date(d), status: "LEAVE" });
+    else if (random > 0.8) data.push({ date: new Date(d), status: "HALF_DAY" });
+    else data.push({ date: new Date(d), status: "PRESENT" });
   }
+  return data;
+};
 
-  // Employee view
-  const myRecords = await Attendance.find({ userId: session.user.id }).sort({ date: -1 }).limit(30).lean();
-  const totalWeek = myRecords.slice(0, 7).reduce((acc, r) => acc + (r.totalMinutes || 0), 0);
+const StatCard = ({ label, value, color, bg }) => (
+  <div className={`p-4 rounded-xl shadow-sm border border-gray-100 ${bg}`}>
+    <p className="text-xs font-medium text-gray-500 uppercase">{label}</p>
+    <p className={`text-2xl font-bold mt-1 ${color}`}>{value}</p>
+  </div>
+);
+
+export default function AttendancePage() {
+  const [selectedYear, setSelectedYear] = useState(2025);
+  const attendanceData = generateMockData(selectedYear);
+
+  const stats = {
+    present: attendanceData.filter((r) => r.status === "PRESENT").length,
+    absent: attendanceData.filter((r) => r.status === "ABSENT").length,
+    leaves: attendanceData.filter((r) => r.status === "LEAVE").length,
+    halfDays: attendanceData.filter((r) => r.status === "HALF_DAY").length,
+  };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-8">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">My Attendance</h1>
-          <p className="text-slate-500 mt-1">Hello {me.name}, here is your recent activity.</p>
+          <h1 className="text-2xl font-bold text-gray-800">Attendance Overview</h1>
+          <p className="text-gray-500">Employee ID: #EMP-001</p>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white border border-slate-200 p-5 rounded-2xl">
-            <p className="text-slate-500 text-sm">Total this week</p>
-            <p className="text-2xl font-semibold text-slate-900 mt-1">{formatMinutes(totalWeek)}</p>
-          </div>
-          <div className="bg-white border border-slate-200 p-5 rounded-2xl">
-            <p className="text-slate-500 text-sm">Days recorded</p>
-            <p className="text-2xl font-semibold text-slate-900 mt-1">{myRecords.length}</p>
-          </div>
-          <div className="bg-white border border-slate-200 p-5 rounded-2xl">
-            <p className="text-slate-500 text-sm">Status</p>
-            <p className="text-2xl font-semibold text-slate-900 mt-1">{myRecords[0]?.clockInAt && !myRecords[0]?.clockOutAt ? 'Clocked In' : 'Idle'}</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-600">
-              <tr>
-                <th className="text-left p-3">Date</th>
-                <th className="text-left p-3">Clock In</th>
-                <th className="text-left p-3">Clock Out</th>
-                <th className="text-left p-3">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {myRecords.map((r) => (
-                <tr key={r._id} className="border-t border-slate-100">
-                  <td className="p-3">{r.date}</td>
-                  <td className="p-3">{r.clockInAt ? new Date(r.clockInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
-                  <td className="p-3">{r.clockOutAt ? new Date(r.clockOutAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
-                  <td className="p-3">{formatMinutes(r.totalMinutes)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        
+        <select 
+          value={selectedYear} 
+          onChange={(e) => setSelectedYear(Number(e.target.value))}
+          className="border border-gray-300 rounded-lg px-4 py-2 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        >
+          <option value={2023}>2023</option>
+          <option value={2024}>2024</option>
+          <option value={2025}>2025</option>
+        </select>
       </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <StatCard label="Total Present" value={stats.present} color="text-emerald-600" bg="bg-emerald-50" />
+        <StatCard label="Total Absent" value={stats.absent} color="text-rose-600" bg="bg-rose-50" />
+        <StatCard label="Leaves Taken" value={stats.leaves} color="text-blue-600" bg="bg-blue-50" />
+        <StatCard label="Half Days" value={stats.halfDays} color="text-amber-600" bg="bg-amber-50" />
+      </div>
+
+      <div className="flex flex-wrap gap-4 mb-6 text-sm text-gray-600 bg-white p-4 rounded-lg shadow-sm">
+        <div className="flex items-center gap-2"><div className="w-3 h-3 bg-emerald-500 rounded-full"></div> Present</div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 bg-rose-500 rounded-full"></div> Absent</div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 bg-blue-500 rounded-full"></div> Leave</div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 bg-amber-400 rounded-full"></div> Half Day</div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 bg-slate-100 border border-gray-200 rounded-full"></div> Weekend</div>
+      </div>
+
+      <AttendanceYearView year={selectedYear} data={attendanceData} />
     </div>
   );
 }
